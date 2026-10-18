@@ -57,3 +57,17 @@ jobs:
     steps:
       - id: d
         uses: actions/deploy-pages@v4
+      - name: Ping IndexNow (Bing, Yandex, ...)
+        continue-on-error: true
+        run: |
+          sleep 30
+          KEY=$(curl -s https://tzahmar.github.io/pokehub/urls.txt >/tmp/urls && grep -o 'INDEXNOW_KEY = "[^"]*"' <(curl -s https://raw.githubusercontent.com/tzahmar/pokehub/main/site.py) | cut -d'"' -f2)
+          python3 - "$KEY" <<'PY'
+          import json, sys, urllib.request
+          key = sys.argv[1]
+          urls = [u for u in open("/tmp/urls").read().split() if u]
+          body = json.dumps({"host": "tzahmar.github.io", "key": key,
+                             "keyLocation": f"https://tzahmar.github.io/pokehub/{key}.txt", "urlList": urls}).encode()
+          req = urllib.request.Request("https://api.indexnow.org/indexnow", body, {"Content-Type": "application/json"})
+          print("IndexNow:", urllib.request.urlopen(req, timeout=30).status, len(urls), "urls")
+          PY

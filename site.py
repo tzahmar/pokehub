@@ -22,7 +22,9 @@ import ptcg
 ROOT = Path(__file__).parent
 OUT = ROOT / "public"
 BASE_URL = "https://tzahmar.github.io/pokehub"
-FB_URL = "https://www.facebook.com/profile.php?id=61595150867535"
+FB_URL = "https://www.facebook.com/pokehubtcg"
+# IndexNow (Bing, Yandex, Seznam...): the key file proves we own the site.
+INDEXNOW_KEY = "8de9360f1c559c36332b9d1157148c40"
 E = html.escape
 
 
@@ -201,6 +203,8 @@ def build() -> None:
         + "</urlset>", encoding="utf8")
     (OUT / "robots.txt").write_text(f"User-agent: *\nAllow: /\nSitemap: {BASE_URL}/sitemap.xml\n", encoding="utf8")
     (OUT / ".nojekyll").write_text("")
+    (OUT / f"{INDEXNOW_KEY}.txt").write_text(INDEXNOW_KEY)
+    (OUT / "urls.txt").write_text("\n".join(f"{BASE_URL}/{u}" for u in urls), encoding="utf8")
     print(f"built {len(urls)} pages, {len(cards)} cards")
 
 
