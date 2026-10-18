@@ -24,6 +24,8 @@ OUT = ROOT / "public"
 BASE_URL = "https://tzahmar.github.io/pokehub"
 FB_URL = "https://www.facebook.com/pokehubtcg"
 # IndexNow (Bing, Yandex, Seznam...): the key file proves we own the site.
+# Google Search Console HTML-tag verification token (content="..."); empty = no tag.
+GOOGLE_VERIFY = ""
 INDEXNOW_KEY = "8de9360f1c559c36332b9d1157148c40"
 E = html.escape
 
@@ -95,10 +97,11 @@ return (isNaN(nx)||isNaN(ny)?x.localeCompare(y):nx-ny)*d});rows.forEach(r=>tb.ap
 
 
 def page(title: str, desc: str, path: str, body: str) -> str:
+    gv = f'<meta name="google-site-verification" content="{E(GOOGLE_VERIFY)}">' if GOOGLE_VERIFY else ""
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{E(title)}</title><meta name="description" content="{E(desc)}">
-<link rel="canonical" href="{BASE_URL}/{path}">
+<link rel="canonical" href="{BASE_URL}/{path}">{gv}
 <meta property="og:title" content="{E(title)}"><meta property="og:description" content="{E(desc)}">
 <meta property="og:type" content="website"><meta property="og:url" content="{BASE_URL}/{path}">
 <style>{CSS}</style></head><body><div class="wrap">
@@ -204,6 +207,8 @@ def build() -> None:
     (OUT / "robots.txt").write_text(f"User-agent: *\nAllow: /\nSitemap: {BASE_URL}/sitemap.xml\n", encoding="utf8")
     (OUT / ".nojekyll").write_text("")
     (OUT / f"{INDEXNOW_KEY}.txt").write_text(INDEXNOW_KEY)
+    # Google Search Console ownership file (verified 2026-10-18; removing it unverifies the site).
+    (OUT / "googlecbe4c6e43a9d807b.html").write_text("google-site-verification: googlecbe4c6e43a9d807b.html")
     (OUT / "urls.txt").write_text("\n".join(f"{BASE_URL}/{u}" for u in urls), encoding="utf8")
     print(f"built {len(urls)} pages, {len(cards)} cards")
 
