@@ -25,6 +25,8 @@ ROOT = Path(__file__).parent
 OUT = ROOT / "public"
 BASE_URL = "https://tzahmar.github.io/pokehub"
 FB_URL = "https://www.facebook.com/pokehubtcg"
+# Our Telegram channel for Pokémon TCG sold prices (telegram-collect-bot, "tcg" channel).
+TG_URL = "https://t.me/rarethingcollect"
 # IndexNow (Bing, Yandex, Seznam...): the key file proves we own the site.
 # Google Search Console HTML-tag verification token (content="..."); empty = no tag.
 GOOGLE_VERIFY = ""
@@ -149,10 +151,12 @@ def page(title: str, desc: str, path: str, body: str) -> str:
 <meta property="og:type" content="website"><meta property="og:url" content="{BASE_URL}/{path}">
 <style>{CSS}</style></head><body><div class="wrap">
 <header><a class="logo" href="{BASE_URL}/">POKEHUB</a>
-<a class="fb" href="{FB_URL}" rel="noopener">Follow on Facebook</a></header>
+<span style="display:flex;gap:8px;flex-wrap:wrap"><a class="fb" href="{FB_URL}" rel="noopener">Follow on Facebook</a>
+<a class="fb" style="background:#229ED9" href="{TG_URL}" rel="noopener">Telegram</a></span></header>
 {body}
 <div class="cta"><b>Daily card prices, Top 10s, news and Reels.</b><br>
-<a class="fb" style="display:inline-block;margin-top:12px" href="{FB_URL}" rel="noopener">Follow Pokehub on Facebook</a></div>
+<a class="fb" style="display:inline-block;margin-top:12px" href="{FB_URL}" rel="noopener">Follow Pokehub on Facebook</a>
+<br><a class="fb" style="display:inline-block;margin-top:10px;background:#229ED9" href="{TG_URL}" rel="noopener">Real sold prices on Telegram</a></div>
 <footer>Prices are TCGplayer market prices for ungraded cards (via pokemontcg.io), updated daily. For reference only.
 Pokehub is a fan site, not affiliated with Nintendo, The Pokémon Company or TCGplayer. Card images © their owners.</footer>
 </div><script>{JS}</script></body></html>"""
