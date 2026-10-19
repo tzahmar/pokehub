@@ -3,6 +3,8 @@ Builds the Pokehub price site (static HTML) into public/.
 
   index.html            hero stats, top 10, full searchable/sortable table
   sets/<slug>.html      one page per set ("<Set> card prices"), for search traffic
+  cards/<slug>.html     one page per card ("<Card> <Set> #num price"): the long-tail
+                        searches collectors type every day, plus a buy link
   sitemap.xml, robots.txt
 
 Data: today's snapshot from ptcg.py (TCGplayer market prices via
@@ -36,6 +38,36 @@ def slug(s: str) -> str:
 
 def money(p: float) -> str:
     return f"${p:,.0f}" if p >= 100 else f"${p:,.2f}"
+
+
+def card_path(c: dict) -> str:
+    # The pokemontcg.io id ("swsh7-215") keeps the URL stable and unique; older
+    # snapshots have no card number, so the number can't be the key.
+    return f"cards/{slug(c['n'] + ' ' + c['s'] + ' ' + c['id'])}.html"
+
+
+def history() -> dict:
+    """{card_id: [(date, price), ...]} from every saved daily snapshot."""
+    out = {}
+    for f in sorted(ptcg.PRICES.glob("*.json")):
+        day = f.stem
+        for cid, c in json.loads(f.read_text(encoding="utf8")).items():
+            out.setdefault(cid, []).append((day, c["p"]))
+    return out
+
+
+def sparkline(points: list) -> str:
+    """Inline SVG price line; empty until there are two days of data."""
+    if len(points) < 2:
+        return ""
+    w, h, ps = 640, 160, [p for _, p in points]
+    lo, hi = min(ps), max(ps)
+    span = (hi - lo) or 1
+    xy = [(i * w / (len(ps) - 1), h - 12 - (p - lo) / span * (h - 24)) for i, p in enumerate(ps)]
+    path = " ".join(f"{x:.1f},{y:.1f}" for x, y in xy)
+    return (f'<svg viewBox="0 0 {w} {h}" style="width:100%;max-width:640px;background:var(--card);'
+            f'border:1px solid var(--line);border-radius:14px"><polyline fill="none" stroke="#ffcb05" '
+            f'stroke-width="3" points="{path}"/></svg>')
 
 
 def load():
@@ -83,7 +115,7 @@ td.price{color:var(--y);font-weight:800}.up{color:var(--up)}.dn{color:var(--dn)}
 padding:6px 12px;text-decoration:none;color:var(--t);font-size:14px}.sets a:hover{border-color:var(--y)}
 .cta{margin:40px 0;background:var(--card);border:1px solid var(--y);border-radius:18px;padding:22px;text-align:center}
 footer{color:var(--m);font-size:13px;padding:30px 0 50px}
-@media(max-width:600px){td.hide,th.hide{display:none}}
+@media(max-width:600px){td.hide,th.hide{display:none}.cardtop{grid-template-columns:1fr!important}.cardtop>img{max-width:240px;margin:0 auto;display:block}}
 """
 
 JS = """
@@ -133,7 +165,7 @@ def table(cards: list, with_set_filter: bool, has_change: bool) -> str:
             chg_td = (f'<td class="{"up" if chg > 0 else "dn" if chg < 0 else ""}">{chg:+.0f}%</td>'
                       if chg is not None else "<td>–</td>")
         name = E(c["n"]) + (f' <span style="color:var(--m)">#{E(c["num"])}</span>' if c.get("num") else "")
-        link = f'<a href="{E(c["u"])}" rel="nofollow noopener">{name}</a>' if c.get("u") else name
+        link = f'<a href="{BASE_URL}/{card_path(c)}">{name}</a>'
         rows.append(
             f'<tr data-k="{E((c["n"] + " " + c["s"]).lower())}" data-s="{E(c["s"])}" data-n="{E(c["n"])}" '
             f'data-r="{E(c["r"])}" data-p="{c["p"]}" data-c="{chg if chg is not None else -999}">'
@@ -145,7 +177,7 @@ def table(cards: list, with_set_filter: bool, has_change: bool) -> str:
 
 def tiles(cards: list) -> str:
     return '<div class="grid">' + "".join(
-        f'<a class="tile rank" href="{E(c.get("u") or "#")}" rel="nofollow noopener"><i>{i}</i>'
+        f'<a class="tile rank" href="{BASE_URL}/{card_path(c)}"><i>{i}</i>'
         f'<img loading="lazy" src="{E(c.get("sm") or c["img"])}" alt="{E(c["n"])}">'
         f'<div class="p">{money(c["p"])}</div><div class="n">{E(c["n"])}<br>{E(c["s"])}</div></a>'
         for i, c in enumerate(cards, 1)) + "</div>"
@@ -156,6 +188,7 @@ def build() -> None:
     if OUT.exists():
         shutil.rmtree(OUT)
     (OUT / "sets").mkdir(parents=True)
+    (OUT / "cards").mkdir()
     try:
         date = day.strftime("%B %-d, %Y")
     except ValueError:                       # Windows strftime has no %-d
@@ -199,7 +232,35 @@ def build() -> None:
             f"{s} Pokémon card prices today: the most valuable cards, led by {cs[0]['n']} at {money(cs[0]['p'])}. "
             f"Updated daily.", f"sets/{slug(s)}.html", body), encoding="utf8")
 
-    urls = [""] + [f"sets/{slug(s)}.html" for s in by_set]
+    hist = history()
+    for c in cards:
+        cs = by_set[c["s"]]
+        rank = cs.index(c) + 1
+        pts = hist.get(c["id"], [])
+        chg = (f'<span class="{"up" if c["chg"] > 0 else "dn"}">{c["chg"]:+.0f}% in 7 days</span>'
+               if c["chg"] else "")
+        hist_rows = "".join(f"<tr><td>{d}</td><td class=\"price\">{money(p)}</td></tr>" for d, p in reversed(pts[-30:]))
+        num = f" #{E(str(c['num']))}" if c.get("num") else ""
+        others = [o for o in cs if o is not c][:10]
+        buy = (f'<p><a class="fb" style="display:inline-block;background:#ffcb05;color:#141428" href="{E(c["u"])}" '
+               f'rel="nofollow noopener sponsored">See listings on TCGplayer</a></p>' if c.get("u") else "")
+        body = (f'<p class="sub"><a href="{BASE_URL}/">All prices</a> › <a href="{BASE_URL}/sets/{slug(c["s"])}.html">{E(c["s"])}</a></p>'
+                f'<h1>{E(c["n"])}{num} price</h1>'
+                f'<p class="sub">{E(c["s"])} · {E(c["r"])} · #{rank} most valuable card in the set</p>'
+                f'<div style="display:grid;grid-template-columns:minmax(0,300px) 1fr;gap:24px;align-items:start" class="cardtop">'
+                f'<img src="{E(c["img"])}" alt="{E(c["n"])} {E(c["s"])}{num}" style="width:100%;border-radius:14px">'
+                f'<div><div class="stat"><span>Market price today ({date}), ungraded</span><b>{money(c["p"])}</b>{chg}</div>'
+                f'{buy}<h2>Price history</h2>{sparkline(pts)}'
+                f'<div class="tbl" style="margin-top:12px"><table><thead><tr><th>Date</th><th>Market price</th></tr></thead>'
+                f'<tbody>{hist_rows}</tbody></table></div></div></div>'
+                f'<h2>More {E(c["s"])} cards</h2>{tiles(others)}')
+        (OUT / card_path(c)).write_text(page(
+            f"{c['n']} {c['s']}{num and ' #' + str(c['num'])} Price Today | Pokehub",
+            f"{c['n']} ({c['s']}{num and ' #' + str(c['num'])}, {c['r']}) is worth {money(c['p'])} today "
+            f"(TCGplayer market price, ungraded). Price history, 7-day change and the set's other top cards.",
+            card_path(c), body), encoding="utf8")
+
+    urls = [""] + [f"sets/{slug(s)}.html" for s in by_set] + [card_path(c) for c in cards]
     (OUT / "sitemap.xml").write_text(
         '<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
         + "".join(f"<url><loc>{BASE_URL}/{u}</loc><lastmod>{day.isoformat()}</lastmod></url>" for u in urls)
