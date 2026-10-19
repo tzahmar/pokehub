@@ -74,6 +74,17 @@ def load():
     day, snap = ptcg.latest_snapshot()
     if snap is None:
         raise SystemExit("no price snapshot yet")
+    # pokemontcg.io sometimes 500s on a whole set for a day (2026-10-19: the
+    # snapshot fell from 467 to 389 cards). Carry such a set over from the
+    # newest earlier snapshot that has it, so its card pages don't 404 for a
+    # day: posts link to them and Google drops pages that flicker.
+    have = {c["s"] for c in snap.values()}
+    for f in sorted(ptcg.PRICES.glob("*.json"), reverse=True)[1:8]:
+        older = json.loads(f.read_text(encoding="utf8"))
+        for cid, c in older.items():
+            if c["s"] not in have and cid not in snap:
+                snap[cid] = c
+        have |= {c["s"] for c in older.values()}
     before = ptcg.load_snapshot(day - dt.timedelta(days=7)) or {}
     cards = []
     for cid, c in snap.items():
